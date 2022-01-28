@@ -26,7 +26,7 @@ def get_workflow_id(file_path):
     Parameters
     ----------
     
-    Returns the workflow id from the file path
+    Returns the workflow id from the file path or -1 if workflow id not in file path
            
     - file_path (str): File path
     '''
@@ -74,8 +74,14 @@ def format_date(date):
 
 def collect_records_from_FPR(provenance, workflow):
     '''
+    (str, str)
     
+    Returns a list of records from File Provenance Report for a given workflow
     
+    Paramaters
+    ----------
+    - provenance (str): Path to the file provenance report
+    - workflow (str): Name of the workflow
     '''
     
     try:
@@ -90,7 +96,7 @@ def extract_fastqs(provenance, time_interval):
     '''
     (str, int) -> (dict)
   
-    Returns xxxxx
+    Returns a dictionary with file path and file swid organied by project and run
             
     Parameters
     ----------
@@ -134,8 +140,6 @@ def extract_fastqs(provenance, time_interval):
                     D[project][run_id][filename]['swid'] = swid
             else:
                 D[project][run_id][filename] = {'filepath': file_path, 'swid': swid}
-    
-    
     return D
 
 
@@ -206,21 +210,16 @@ def extract_fastqs(provenance, time_interval):
 
 def get_QC_status_from_nabu(api, file_swid):
     '''
-    (str, str, str, str, str | None) -> None
+    (str, str) -> (str | None, str)
     
-    
-    XXXXXXXXXXXXXXXXXXXXXXx
-    
-    
-    
-    
+    Returns a tuple with the file QC status and release ticket if file is released
+        
     Parameters
     ----------
     - api (str): URL of the nabu API
     - file_swid (str): File unique identifier
     '''
     
-   
     try:
         response = requests.get(api + '/fileqc/{0}'.format(file_swid), {'accept': 'application/json',})
     except:
@@ -244,14 +243,14 @@ def get_QC_status_from_nabu(api, file_swid):
 
 def add_QC_status(api, fastqs):
     '''
+    (str, dict) -> dict
     
+    Returns a dictionary with file path, file swid, QC status and release ticket organied by project and run
     
-    
-
-    Returns
-    -------
-    None.
-
+    Parameters
+    ----------
+    - api (str): URL of the nabu API
+    - file_swid (str): File unique identifier
     '''
 
     for project in fastqs:
@@ -270,20 +269,21 @@ def add_QC_status(api, fastqs):
 
 def write_table(table_file, fastqs):
     '''
+    (str, dict) -> None
     
-    
+    Parameters
+    ----------
+    - table_file (str): Path to table file with data release status
+    - fastqs (dict): Dictionary with file path, file swid, QC status and release ticket organied by project and run
     '''
-    
     
     newfile = open(table_file, 'w')
     header = ['project', 'run', 'file_count', 'number_files_released', 'number_files_missing_status', 'percent_missing_status', 'tickets'] 
     newfile.write('\t'.join(header) + '\n')
-    # project run files_num ticket num_files_reeleased 
-    
+     
 
     # make a sorted list of projects
     projects = sorted(list(fastqs.keys()))
-
     for project in projects:
         # make a sorted list of runs
         runs = sorted(list(fastqs[project].keys()))
@@ -302,37 +302,38 @@ def write_table(table_file, fastqs):
 
 
 def track_files(args):
+    '''
+    (list) -> None
+    
+    Write a tab deliminated table with release information for each run and project for fastqs sequenced at OICR
+    by parsing the File Provenance Report and cross-referencing with Nabu
+        
+    Parameters
+    ----------
+    
+    - fpr (str): Path to File Provenance Report
+    - m (int): Number of months prior the current date from which records are considered
+    - t (str): Path to table file with data release status 
+    - a (str): URL of the Nabu API
+    '''
     
     # dereference FPR
     provenance = os.path.realpath(args.provenance)
+    # parse file provenance report
     fastqs = extract_fastqs(provenance, args.interval)
+    # add file QC status from nabu
     fastqs = add_QC_status(args.api, fastqs)
+    # write table file
     write_table(args.table, fastqs)
 
 
-
-
-    
-    
 if __name__ == '__main__':
-
     # create top-level parser
     parser = argparse.ArgumentParser(prog = 'release_tracker.py', description='A tool to track released fastqs')
     parser.add_argument('-fpr', '--provenance', dest='provenance', default='/.mounts/labs/seqprodbio/private/backups/seqware_files_report_latest.tsv.gz', help='Path to File Provenance Report. Default is /.mounts/labs/seqprodbio/private/backups/seqware_files_report_latest.tsv.gz')
-    parser.add_argument('-m', '--months', dest='interval', default=12, type=int, help='Path to File Provenance Report. Default is /.mounts/labs/seqprodbio/private/backups/seqware_files_report_latest.tsv.gz')
-    
-    
-    
-    parser.add_argument('-t', '--table', dest='table', help='Path to File Provenance Report. Default is /.mounts/labs/seqprodbio/private/backups/seqware_files_report_latest.tsv.gz')
-    
-    
+    parser.add_argument('-m', '--months', dest='interval', default=12, type=int, help='Number of months prior the current date from which records are considered')
+    parser.add_argument('-t', '--table', dest='table', help='Path to table file with data release status')
     parser.add_argument('-a', '--api', dest='api', default='http://gsi-dcc.oicr.on.ca:3000', help='URL of the Nabu API. Default is http://gsi-dcc.oicr.on.ca:3000')
-                        
-                        
-                        
-    
-    
-    
     parser.set_defaults(func=track_files)
     
     # get arguments from the command line
