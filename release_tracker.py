@@ -158,8 +158,6 @@ def extract_fastqs(provenance, time_interval, keep_novaseq):
         if keep_novaseq and instrument != 'NovaSeq':
             to_keep = False
         
-        print(project, run_id, instrument, keep_novaseq, to_keep)
-            
         if date >= start_date and to_keep:
             if project not in D:
                 D[project] = {}
@@ -222,7 +220,6 @@ def add_QC_status(api, fastqs):
     '''
 
     for project in fastqs:
-        print(project)
         for run in fastqs[project]:
             for filename in fastqs[project][run]:
                 # get file QC status
@@ -263,7 +260,7 @@ def write_table(table_file, fastqs):
             num_released_files =  [fastqs[project][run][filename]['qcstatus'] for filename in fastqs[project][run]].count('PASS')   
             num_missing_status =  len([fastqs[project][run][filename]['qcstatus'] for filename in fastqs[project][run] if fastqs[project][run][filename]['qcstatus'] is None])  
             percent_missing = round(num_missing_status / file_count * 100, 4)
-            line = list(map(lambda x: str(x), [project, run, file_count, num_released_files, num_missing_status, percent_missing, ';'.join(tickets)]))
+            line = list(map(lambda x: str(x), [project, run, file_count, num_released_files, num_missing_status, percent_missing, ';'.join(map(lambda x: os.path.basename(x), tickets))]))
             newfile.write('\t'.join(line) + '\n')
 
     newfile.close()
