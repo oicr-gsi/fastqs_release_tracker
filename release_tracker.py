@@ -13,10 +13,6 @@ import time
 from dateutil.relativedelta import relativedelta
 import requests
 
-
-
-
-
    
 
 def get_workflow_id(file_path):
@@ -92,9 +88,37 @@ def collect_records_from_FPR(provenance, workflow):
         return records
 
 
-def extract_fastqs(provenance, time_interval):
+
+def map_instrument_type(sequencer):
     '''
-    (str, int) -> (dict)
+    (str) -> str
+
+    Returns a generic intrument name for the sequencer model
+    
+    Parameters
+    ----------
+    - sequencer (str): Name of the instrument on which libraries are sequenced
+    '''
+    
+    instrument = ''
+    if 'miseq' in sequencer.lower():
+        instrument = 'MiSeq' 
+    elif 'nextseq' in sequencer.lower():
+        instrument = 'NextSeq'
+    elif 'hiseq' in sequencer.lower():
+        instrument = 'HiSeq'
+    elif 'novaseq' in sequencer.lower():
+        instrument = 'NovaSeq'
+    return instrument
+
+
+
+
+
+
+def extract_fastqs(provenance, time_interval, keep_novaseq):
+    '''
+    (str, int, bool) -> (dict)
   
     Returns a dictionary with file path and file swid organied by project and run
             
@@ -102,6 +126,7 @@ def extract_fastqs(provenance, time_interval):
     ----------
     - provenance (str): Path to File Provenance Report
     - time_interval (int): Number of months prior the current date from which records are considered
+    - keep_novaseq (bool): Keep only novaseq runs if True
     '''
     
     # create a dict {project: {run: {filename: {'filepath': filepath, 'swid': swid}}}}
@@ -126,8 +151,16 @@ def extract_fastqs(provenance, time_interval):
         project, run_id = i[1], i[18]
         # format date to Y.m.d H:M:S and convert to epoch time
         date = convert_to_epoch(format_date(i[0]))
+        # get instrument
+        instrument = map_instrument_type(i[22])
+        # keep only novaseq runs if option is set
+        to_keep = True
+        if keep_novaseq and instrument != 'NovaSeq':
+            to_keep = False
+        
+        print(project, run_id, instrument, keep_novaseq, to_keep)
             
-        if date >= start_date:
+        if date >= start_date and to_keep:
             if project not in D:
                 D[project] = {}
             if run_id not in D[project]:
@@ -250,12 +283,13 @@ def track_files(args):
     - m (int): Number of months prior the current date from which records are considered
     - t (str): Path to table file with data release status 
     - a (str): URL of the Nabu API
+    - novaseq (bool): Keep only novaseq runs if activated 
     '''
     
     # dereference FPR
     provenance = os.path.realpath(args.provenance)
     # parse file provenance report
-    fastqs = extract_fastqs(provenance, args.interval)
+    fastqs = extract_fastqs(provenance, args.interval, args.novaseq)
     # add file QC status from nabu
     fastqs = add_QC_status(args.api, fastqs)
     # write table file
@@ -269,6 +303,7 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--months', dest='interval', default=12, type=int, help='Number of months prior the current date from which records are considered')
     parser.add_argument('-t', '--table', dest='table', help='Path to table file with data release status')
     parser.add_argument('-a', '--api', dest='api', default='http://gsi-dcc.oicr.on.ca:3000', help='URL of the Nabu API. Default is http://gsi-dcc.oicr.on.ca:3000')
+    parser.add_argument('--novaseq', dest='novaseq', action='store_true', help='Keep only novaseq runs if activated')
     parser.set_defaults(func=track_files)
     
     # get arguments from the command line
