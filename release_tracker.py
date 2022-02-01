@@ -231,6 +231,31 @@ def add_QC_status(api, fastqs):
     return fastqs
 
 
+def clean_up_tickets(L):
+    '''
+    (list) -> str
+    
+    Returns a semi-colon separated string with tickets for a single run or NA if
+    files in the run were not released or if QC info could not be retrieved
+    for any of the files in the run
+    
+    
+    Parameters
+    ----------
+    - L (list): List of tickets for a single run and/or NA if no release of QC info cannot be extrcted from nabu
+    '''
+    
+    # apply consistent ticket naming scheme by removing URL if present 
+    T = list(map(lambda x: os.path.basename(x).upper(), L))
+    # remove 'NA' if at least 1 ticket is found.
+    # this is because 'NA' is added if the QC status cannot be retrieved from Nabu    
+    if any(map(lambda x: x.startswith('GDR'), T)):
+        while 'NA' in T:
+            T.remove('NA')
+    T = ';'.join(T)        
+    return T
+
+
 
 def write_table(table_file, fastqs):
     '''
@@ -257,10 +282,12 @@ def write_table(table_file, fastqs):
             file_count = len(fastqs[project][run])
             # get the tiket and number of files with PASS status (ie released)
             tickets = list(set([fastqs[project][run][filename]['ticket'] for filename in fastqs[project][run]]))
+            # clean up ticket lists: consistent format and remove NA due to missing QC info
+            tickets = clean_up_tickets(tickets)
             num_released_files =  [fastqs[project][run][filename]['qcstatus'] for filename in fastqs[project][run]].count('PASS')   
             num_missing_status =  len([fastqs[project][run][filename]['qcstatus'] for filename in fastqs[project][run] if fastqs[project][run][filename]['qcstatus'] is None])  
             percent_missing = round(num_missing_status / file_count * 100, 4)
-            line = list(map(lambda x: str(x), [project, run, file_count, num_released_files, num_missing_status, percent_missing, ';'.join(map(lambda x: os.path.basename(x), tickets))]))
+            line = list(map(lambda x: str(x), [project, run, file_count, num_released_files, num_missing_status, percent_missing, tickets]))
             newfile.write('\t'.join(line) + '\n')
 
     newfile.close()
