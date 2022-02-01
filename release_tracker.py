@@ -233,13 +233,11 @@ def add_QC_status(api, fastqs):
 
 def clean_up_tickets(L):
     '''
-    (list) -> str
+    (list) -> list
     
-    Returns a semi-colon separated string with tickets for a single run or NA if
-    files in the run were not released or if QC info could not be retrieved
-    for any of the files in the run
-    
-    
+    Returns a list of tickets for a single run or NA if files in the run were
+    not released or if QC info could not be retrieved for any of the files in the run
+        
     Parameters
     ----------
     - L (list): List of tickets for a single run and/or NA if no release of QC info cannot be extrcted from nabu
@@ -252,9 +250,22 @@ def clean_up_tickets(L):
     if any(map(lambda x: x.startswith('GDR'), T)):
         while 'NA' in T:
             T.remove('NA')
-    T = ';'.join(T)        
     return T
 
+
+def add_links_to_tickets(L):
+    '''
+    (list) -> list
+
+    Returns a list of valid Jira URLs or NA if release ticket not defined     
+
+    Parameters
+    ----------    
+    - L (list): List of tickets for a single run and/or NA if no release of QC info cannot be extrcted from nabu
+    '''
+    
+    T = ['https://jira.oicr.on.ca/browse/{0}'.format(i) if i != 'NA' else i for i in L]
+    return T
 
 
 def write_table(table_file, fastqs):
@@ -268,7 +279,7 @@ def write_table(table_file, fastqs):
     '''
     
     newfile = open(table_file, 'w')
-    header = ['project', 'run', 'file_count', 'number_files_released', 'number_files_missing_status', 'percent_missing_status', 'tickets'] 
+    header = ['Project', 'Run', 'File_count', 'Number_files_released', 'Number_files_missing_status', 'Percent_missing_status', 'Released', 'Tickets'] 
     newfile.write('\t'.join(header) + '\n')
      
 
@@ -280,14 +291,20 @@ def write_table(table_file, fastqs):
         for run in runs:
             # count number of files
             file_count = len(fastqs[project][run])
-            # get the tiket and number of files with PASS status (ie released)
-            tickets = list(set([fastqs[project][run][filename]['ticket'] for filename in fastqs[project][run]]))
+            # get the tiket and number of files with PASS status (ie released) + clean up
             # clean up ticket lists: consistent format and remove NA due to missing QC info
-            tickets = clean_up_tickets(tickets)
+            tickets = clean_up_tickets(list(set([fastqs[project][run][filename]['ticket'] for filename in fastqs[project][run]])))
+            # add links to tickets
+            tickets = add_links_to_tickets(tickets)
+            # get release status from ticket list
+            if any(map(lambda x: x.startswith('GDR'), tickets)):
+                release_status = 'YES'
+            else:
+                release_status = 'NO'
             num_released_files =  [fastqs[project][run][filename]['qcstatus'] for filename in fastqs[project][run]].count('PASS')   
             num_missing_status =  len([fastqs[project][run][filename]['qcstatus'] for filename in fastqs[project][run] if fastqs[project][run][filename]['qcstatus'] is None])  
             percent_missing = round(num_missing_status / file_count * 100, 2)
-            line = list(map(lambda x: str(x), [project, run, file_count, num_released_files, num_missing_status, percent_missing, tickets]))
+            line = list(map(lambda x: str(x), [project, run, file_count, num_released_files, num_missing_status, percent_missing, release_status, ' '.join(tickets)]))
             newfile.write('\t'.join(line) + '\n')
 
     newfile.close()
