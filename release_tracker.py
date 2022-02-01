@@ -286,7 +286,7 @@ def write_table(table_file, fastqs):
             tickets = clean_up_tickets(tickets)
             num_released_files =  [fastqs[project][run][filename]['qcstatus'] for filename in fastqs[project][run]].count('PASS')   
             num_missing_status =  len([fastqs[project][run][filename]['qcstatus'] for filename in fastqs[project][run] if fastqs[project][run][filename]['qcstatus'] is None])  
-            percent_missing = round(num_missing_status / file_count * 100, 4)
+            percent_missing = round(num_missing_status / file_count * 100, 2)
             line = list(map(lambda x: str(x), [project, run, file_count, num_released_files, num_missing_status, percent_missing, tickets]))
             newfile.write('\t'.join(line) + '\n')
 
