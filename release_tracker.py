@@ -300,7 +300,7 @@ def write_table(table_file, fastqs):
             # add links to tickets
             tickets = add_links_to_tickets(tickets)
             # get release status from ticket list
-            if any(map(lambda x: x.startswith('GDR'), tickets)):
+            if any(map(lambda x: os.path.basename(x).startswith('GDR'), tickets)):
                 release_status = 'YES'
             else:
                 release_status = 'NO'
