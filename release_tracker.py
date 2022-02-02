@@ -194,12 +194,15 @@ def get_QC_status_from_nabu(api, file_swid):
     # check response code
     if response.status_code == 200:
         d = response.json()
-        assert len(d['fileqcs']) == 1
-        qcstatus = d['fileqcs'][0]['qcstatus']
-        if 'comment' in d['fileqcs'][0]:
-            ticket = d['fileqcs'][0]['comment']
+        if d['fileqcs']:
+            assert len(d['fileqcs']) == 1
+            qcstatus = d['fileqcs'][0]['qcstatus']
+            if 'comment' in d['fileqcs'][0]:
+                ticket = d['fileqcs'][0]['comment']
+            else:
+                ticket = 'NA'
         else:
-            ticket = 'NA'
+            qcstatus, ticket = None, 'NA'
     else:
         qcstatus, ticket = None, 'NA'
 
