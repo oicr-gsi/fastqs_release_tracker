@@ -113,12 +113,42 @@ def map_instrument_type(sequencer):
 
 
 
-
-
-
-def extract_fastqs(provenance, time_interval, keep_novaseq):
+def update_project_info(D, project, run_id, filename, file_path, swid):
     '''
-    (str, int, bool) -> (dict)
+    (dict, str, str, str, str, int) -> None
+    
+    Updates dictionary D with file path and swid for each run and project
+    
+    Parameters
+    ----------
+    
+    - D (dict): Dictionary with file information organized by project and run
+    - project (str): Project name as it appears in FPR
+    - run_id (str): Sequencing run
+    - filename (str): Base name of fastq file
+    - file_path (str): Full path to fastq file
+    - swid (int): Unique file identifier
+    '''
+    
+    
+    if project not in D:
+        D[project] = {}
+    if run_id not in D[project]:
+        D[project][run_id] = {}
+    # collect file paths and swids 
+    if filename in D[project][run_id]:
+        # select files with the most recent workflow id if identical files
+        if get_workflow_id(file_path) >= get_workflow_id(D[project][run_id][filename]['filepath']):
+             D[project][run_id][filename]['filepath'] = file_path
+             D[project][run_id][filename]['swid'] = swid
+    else:
+        D[project][run_id][filename] = {'filepath': file_path, 'swid': swid}
+
+
+
+def extract_fastqs(provenance, time_interval, keep_novaseq, projects):
+    '''
+    (str, int, bool, list) -> (dict)
   
     Returns a dictionary with file path and file swid organied by project and run
             
@@ -127,6 +157,8 @@ def extract_fastqs(provenance, time_interval, keep_novaseq):
     - provenance (str): Path to File Provenance Report
     - time_interval (int): Number of months prior the current date from which records are considered
     - keep_novaseq (bool): Keep only novaseq runs if True
+    - projects (list): A list of projects for which the time_interval does not apply. All records are retrieved from FPR (keep_novaseq applies) 
+                       The project name must be the project listed in FPR
     '''
     
     # create a dict {project: {run: {filename: {'filepath': filepath, 'swid': swid}}}}
@@ -158,19 +190,11 @@ def extract_fastqs(provenance, time_interval, keep_novaseq):
         if keep_novaseq and instrument != 'NovaSeq':
             to_keep = False
         
-        if date >= start_date and to_keep:
-            if project not in D:
-                D[project] = {}
-            if run_id not in D[project]:
-                D[project][run_id] = {}
-            # collect file paths and swids 
-            if filename in D[project][run_id]:
-                # select files with the most recent workflow id if identical files
-                if get_workflow_id(file_path) >= get_workflow_id(D[project][run_id][filename]['filepath']):
-                    D[project][run_id][filename]['filepath'] = file_path
-                    D[project][run_id][filename]['swid'] = swid
-            else:
-                D[project][run_id][filename] = {'filepath': file_path, 'swid': swid}
+        if to_keep:
+            if project in projects:
+                update_project_info(D, project, run_id, filename, file_path, swid)
+            elif date >= start_date:
+                update_project_info(D, project, run_id, filename, file_path, swid)
     return D
 
 
@@ -333,7 +357,7 @@ def track_files(args):
     # dereference FPR
     provenance = os.path.realpath(args.provenance)
     # parse file provenance report
-    fastqs = extract_fastqs(provenance, args.interval, args.novaseq)
+    fastqs = extract_fastqs(provenance, args.interval, args.novaseq, args.projects)
     # add file QC status from nabu
     fastqs = add_QC_status(args.api, fastqs)
     # write table file
@@ -347,6 +371,7 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--months', dest='interval', default=12, type=int, help='Number of months prior the current date from which records are considered')
     parser.add_argument('-t', '--table', dest='table', help='Path to table file with data release status')
     parser.add_argument('-a', '--api', dest='api', default='http://gsi-dcc.oicr.on.ca:3000', help='URL of the Nabu API. Default is http://gsi-dcc.oicr.on.ca:3000')
+    parser.add_argument('-p', '--projects', dest='projects', nargs='*', help='List of projects for which the time limit does not apply. All records are extracted from FPR.')
     parser.add_argument('--novaseq', dest='novaseq', action='store_true', help='Keep only novaseq runs if activated')
     parser.set_defaults(func=track_files)
     
