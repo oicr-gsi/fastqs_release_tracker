@@ -113,7 +113,7 @@ def map_instrument_type(sequencer):
 
 
 
-def update_project_info(D, project, run_id, filename, file_path, swid):
+def update_project_info(D, project, run_id, filename, file_path, swid, date):
     '''
     (dict, str, str, str, str, int) -> None
     
@@ -128,6 +128,7 @@ def update_project_info(D, project, run_id, filename, file_path, swid):
     - filename (str): Base name of fastq file
     - file_path (str): Full path to fastq file
     - swid (int): Unique file identifier
+    - date (int): Creation date of the fastq in epoch time
     '''
     
     
@@ -141,8 +142,9 @@ def update_project_info(D, project, run_id, filename, file_path, swid):
         if get_workflow_id(file_path) >= get_workflow_id(D[project][run_id][filename]['filepath']):
              D[project][run_id][filename]['filepath'] = file_path
              D[project][run_id][filename]['swid'] = swid
+             D[project][run_id][filename]['date'] = date
     else:
-        D[project][run_id][filename] = {'filepath': file_path, 'swid': swid}
+        D[project][run_id][filename] = {'filepath': file_path, 'swid': swid, 'date': date}
 
 
 
@@ -192,9 +194,9 @@ def extract_fastqs(provenance, time_interval, keep_novaseq, projects):
         
         if to_keep:
             if project in projects:
-                update_project_info(D, project, run_id, filename, file_path, swid)
+                update_project_info(D, project, run_id, filename, file_path, swid, date)
             elif date >= start_date:
-                update_project_info(D, project, run_id, filename, file_path, swid)
+                update_project_info(D, project, run_id, filename, file_path, swid, date)
     return D
 
 
@@ -306,7 +308,7 @@ def write_table(table_file, fastqs):
     '''
     
     newfile = open(table_file, 'w')
-    header = ['Project', 'Run', 'File_count', 'Number_files_released', 'Number_files_missing_status', 'Percent_missing_status', 'Released', 'Tickets'] 
+    header = ['Project', 'Run', 'Date', 'File_count', 'Number_files_released', 'Number_files_missing_status', 'Percent_missing_status', 'Released', 'Tickets'] 
     newfile.write('\t'.join(header) + '\n')
      
 
@@ -328,10 +330,14 @@ def write_table(table_file, fastqs):
                 release_status = 'YES'
             else:
                 release_status = 'NO'
+            # get the date of creation of most recent fastqs in run
+            date = sorted([fastqs[project][run][filename]['date'] for filename in fastqs[project][run]])[0]             
+            # convert date from epoch time to readable time            
+            date = time.strftime('%Y-%m-%d', time.localtime(date))
             num_released_files =  [fastqs[project][run][filename]['qcstatus'] for filename in fastqs[project][run]].count('PASS')   
             num_missing_status =  len([fastqs[project][run][filename]['qcstatus'] for filename in fastqs[project][run] if fastqs[project][run][filename]['qcstatus'] is None])  
             percent_missing = round(num_missing_status / file_count * 100, 2)
-            line = list(map(lambda x: str(x), [project, run, file_count, num_released_files, num_missing_status, percent_missing, release_status, ' '.join(tickets)]))
+            line = list(map(lambda x: str(x), [project, run, date, file_count, num_released_files, num_missing_status, percent_missing, release_status, ' '.join(tickets)]))
             newfile.write('\t'.join(line) + '\n')
 
     newfile.close()
